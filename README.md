@@ -22,7 +22,17 @@ easily as a person. EZ CHECK moves the approval out of the agent's reach:
 - **No friction where it isn't needed.** Read-only and low-risk tools run untouched; one line marks a tool high-risk.
 - **An audit trail.** Every request, approval, denial and timeout is logged with what was signed and by which passkey.
 
-### Try it in 5 minutes
+### Live demo
+
+**[ez-check.vercel.app](https://ez-check.vercel.app)**: create a passkey on your phone or laptop, let a
+pretend agent try to refund a payment, and approve it with your fingerprint or face. It also includes a
+bait-and-switch attack where the agent swaps the amount after you sign, and gets blocked. No install needed.
+
+The hosted demo is stateless ([`api/`](api), [`web/`](web)): each visitor's passkey and pending approvals
+travel in HMAC-signed tokens, so it runs on Vercel functions with no database. It uses the same
+argument-bound challenge as the MCP SDK.
+
+### Try it with Claude Code in 5 minutes
 
 ```bash
 npm install && npm run demo

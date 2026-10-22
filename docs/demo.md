@@ -1,5 +1,11 @@
 # Demo guide
 
+**Hosted demo for judges:** [ez-check.vercel.app](https://ez-check.vercel.app). Works on a phone with Face ID
+or Touch ID, no install. Use it as the link in your submission and the deck. The guide below is for the
+Claude Code recording, which shows the real MCP integration.
+
+Redeploy the hosted demo after changes with `vercel deploy --prod` from the repo root.
+
 A 2-minute screen recording: Claude Code tries to refund a payment, EZ CHECK pauses it, you approve with
 Touch ID, then deny a second one and Claude backs off.
 

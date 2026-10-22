@@ -1,0 +1,6 @@
+node_modules
+.ezcheck
+**/dist
+web/vendor
+.claude
+.env*
