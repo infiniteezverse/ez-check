@@ -1,7 +1,7 @@
-import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
+import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { hashToolCall } from '@ezcheck/mcp-sdk';
+import { approvalChallenge, hashToolCall } from '@ezcheck/mcp-sdk';
 import {
   generateAuthenticationOptions,
   generateRegistrationOptions,
@@ -10,6 +10,7 @@ import {
 } from '@simplewebauthn/server';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import type { Config } from './config.js';
+import { toTrustedPasskey } from './cose.js';
 import type { Approval, Store } from './store.js';
 
 const publicDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'public');
@@ -20,11 +21,6 @@ const browserBundle = join(
   'bundle',
   'index.umd.min.js',
 );
-
-/** The WebAuthn challenge commits to the exact tool call, so the signature is over what the human saw. */
-export function approvalChallenge(argsHash: string, nonce: string): string {
-  return createHash('sha256').update(`ezcheck:v1:${argsHash}:${nonce}`).digest('base64url');
-}
 
 export function createApp(config: Config, store: Store) {
   const app = express();
@@ -78,8 +74,13 @@ export function createApp(config: Config, store: Store) {
     }
     res.json({
       status: approval.status,
-      ...(approval.status === 'approved' ? { argsHash: approval.argsHash } : {}),
+      ...(approval.status === 'approved' ? { argsHash: approval.argsHash, proof: approval.proof } : {}),
     });
+  });
+
+  // Public keys for agents to pin, so they can verify approvals without trusting this server.
+  app.get('/api/passkeys', requireAgent, (_req, res) => {
+    res.json(store.listCredentials().map((c) => toTrustedPasskey(c.id, c.publicKey)));
   });
 
   // ---------- Human pages ----------
@@ -201,7 +202,13 @@ export function createApp(config: Config, store: Store) {
       });
       if (!verified) throw new Error('Signature not verified');
       store.updateCounter(credential.id, authenticationInfo.newCounter);
-      Object.assign(approval, { status: 'approved', approvedBy: credential.id, decidedAt: Date.now() });
+      const { authenticatorData, clientDataJSON, signature } = req.body.response;
+      Object.assign(approval, {
+        status: 'approved',
+        approvedBy: credential.id,
+        decidedAt: Date.now(),
+        proof: { credentialId: credential.id, authenticatorData, clientDataJSON, signature, nonce: approval.nonce! },
+      });
       store.audit('approved', approval);
       res.json({ status: 'approved' });
     } catch (err) {

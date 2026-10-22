@@ -9,11 +9,16 @@ if (!token) {
   process.exit(1);
 }
 
+const baseUrl = process.env.EZCHECK_URL ?? 'http://localhost:4747';
 const ezCheck = createEzCheck({
   approver: new HttpApprover({
-    baseUrl: process.env.EZCHECK_URL ?? 'http://localhost:4747',
+    baseUrl,
     token,
     openInBrowser: process.env.EZCHECK_OPEN_BROWSER !== '0',
+    // With pinned passkeys (JSON from GET /api/passkeys), check the signature here instead of trusting the server.
+    verify: process.env.EZCHECK_PASSKEYS
+      ? { origin: baseUrl, rpID: new URL(baseUrl).hostname, trustedKeys: JSON.parse(process.env.EZCHECK_PASSKEYS) }
+      : undefined,
   }),
 });
 
@@ -58,7 +63,7 @@ server.registerTool(
     } catch (err) {
       // Tell the agent plainly so it doesn't retry or work around the refusal.
       if (err instanceof ApprovalDeniedError) {
-        return { ...text(`The user did not approve this (${err.status}). Do not retry unless they ask.`), isError: true };
+        return { ...text(`This call was not approved (${err.status}). Do not retry unless they ask.`), isError: true };
       }
       throw err;
     }

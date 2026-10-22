@@ -2,9 +2,9 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createEzCheck, hashToolCall, HttpApprover } from '@ezcheck/mcp-sdk';
+import { approvalChallenge, createEzCheck, hashToolCall, HttpApprover } from '@ezcheck/mcp-sdk';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { approvalChallenge, createApp } from '../src/app.js';
+import { createApp } from '../src/app.js';
 import type { Config } from '../src/config.js';
 import { Store } from '../src/store.js';
 import { SoftAuthenticator } from './soft-authenticator.js';
@@ -94,7 +94,11 @@ describe('approving with a passkey', () => {
       status: 200,
       body: { status: 'approved' },
     });
-    expect(await status(id)).toEqual({ status: 'approved', argsHash: hashToolCall('wipe', args) });
+    expect(await status(id)).toMatchObject({
+      status: 'approved',
+      argsHash: hashToolCall('wipe', args),
+      proof: { credentialId: device.id, nonce },
+    });
 
     const events = readFileSync(store.auditFile, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
     expect(events.at(-1)).toMatchObject({ event: 'approved', id, approvedBy: device.id });
@@ -150,5 +154,65 @@ describe('approving with a passkey', () => {
 
     await expect(deleteBackup({ name: 'orders-2026-10-20' })).resolves.toBe('ok');
     expect(deleted).toBe('orders-2026-10-20');
+  });
+});
+
+describe('agent-side verification with pinned passkeys', () => {
+  const pinnedKeys = async () =>
+    (await fetch(`${base}/api/passkeys`, { headers: { authorization: `Bearer ${TOKEN}` } })).json();
+
+  const approveWith = (verify: ConstructorParameters<typeof HttpApprover>[0]['verify'], human: (id: string) => Promise<void>) =>
+    new HttpApprover({ baseUrl: base, token: TOKEN, pollIntervalMs: 20, verify, onPending: (url) => void human(url.split('/').pop()!) });
+
+  const approveHonestly = async (id: string) => {
+    const options = await post(`/webauthn/approvals/${id}/options`);
+    await post(`/webauthn/approvals/${id}/verify`, device.authenticate(options.body));
+  };
+
+  beforeEach(async () => {
+    await register();
+  });
+
+  it('exposes the registered passkey as a pinnable JWK', async () => {
+    expect(await pinnedKeys()).toEqual([{ id: device.id, alg: -7, jwk: expect.objectContaining({ kty: 'EC', crv: 'P-256' }) }]);
+  });
+
+  it('runs the tool when the pinned passkey signed this exact call', async () => {
+    const verify = { origin: ORIGIN, rpID: 'localhost', trustedKeys: await pinnedKeys() };
+    const tool = createEzCheck({ approver: approveWith(verify, approveHonestly) }).protect(async () => 'ran', {
+      name: 'wipe',
+      riskTier: 'HIGH',
+    });
+    await expect(tool({ db: 'prod' })).resolves.toBe('ran');
+  });
+
+  it('blocks when the signer is not the pinned passkey', async () => {
+    const other = new SoftAuthenticator('localhost', ORIGIN);
+    const otherKeys = (await pinnedKeys()).map((k: { alg: number }) => ({ ...k, id: other.id }));
+    const verify = { origin: ORIGIN, rpID: 'localhost', trustedKeys: otherKeys };
+    const tool = createEzCheck({ approver: approveWith(verify, approveHonestly) }).protect(async () => 'ran', {
+      name: 'wipe',
+      riskTier: 'HIGH',
+    });
+    await expect(tool({ db: 'prod' })).rejects.toMatchObject({ status: 'unverified' });
+  });
+
+  it('blocks a compromised server that reuses a signature from a harmless approval', async () => {
+    const verify = { origin: ORIGIN, rpID: 'localhost', trustedKeys: await pinnedKeys() };
+    // The "server" gets the human to approve something harmless, then marks the dangerous call approved with that proof.
+    const lyingServer = async (dangerousId: string) => {
+      const harmlessId = await createApproval('list_backups', {});
+      await approveHonestly(harmlessId);
+      Object.assign(store.approvals.get(dangerousId)!, { status: 'approved', proof: store.approvals.get(harmlessId)!.proof });
+    };
+    let ran = false;
+    const tool = createEzCheck({ approver: approveWith(verify, lyingServer) }).protect(
+      async () => {
+        ran = true;
+      },
+      { name: 'wipe', riskTier: 'HIGH' },
+    );
+    await expect(tool({ db: 'prod' })).rejects.toMatchObject({ status: 'unverified' });
+    expect(ran).toBe(false);
   });
 });

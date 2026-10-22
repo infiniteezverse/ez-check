@@ -130,6 +130,30 @@ credential id that signed. The file is created `0600`.
 - **No silent fallback.** A high-risk call that isn't approved does not run. There is deliberately no option to skip.
 - **Loopback only by default.** The server binds `127.0.0.1`, so pending requests (which include tool arguments)
   aren't visible to the network. Agent endpoints need the bearer token; denying never needs a passkey.
+- **The agent doesn't have to trust the server.** With pinned passkeys, the SDK checks the WebAuthn signature
+  itself: right passkey, user verified, right origin, and a challenge built from the hash *it* computed. A
+  compromised approval server can't approve anything you didn't sign. ES256, RS256 (Windows Hello) and EdDSA
+  keys are supported.
+
+### Pinning your passkey
+
+After registering, fetch your passkey's public key once and give it to the MCP server:
+
+```bash
+export EZCHECK_PASSKEYS=$(curl -s -H "Authorization: Bearer $EZCHECK_AGENT_TOKEN" http://localhost:4747/api/passkeys)
+```
+
+Both examples read `EZCHECK_PASSKEYS` (pass it with another `-e` on `claude mcp add`). In your own server:
+
+```ts
+new HttpApprover({
+  baseUrl: 'http://localhost:4747',
+  token,
+  verify: { origin: 'http://localhost:4747', rpID: 'localhost', trustedKeys: JSON.parse(process.env.EZCHECK_PASSKEYS!) },
+});
+```
+
+If verification fails, the call is blocked with status `unverified`.
 
 ## Configuration (approval server)
 
@@ -156,5 +180,4 @@ v0.1, single user, local machine. Not yet built:
 
 - Approval from a phone (needs the server on a real HTTPS origin so the phone's passkey can be used).
 - Native notifications instead of opening a browser tab.
-- The SDK verifying the signed assertion itself instead of trusting the local server.
 - Web surface: see [docs/web-surface.md](docs/web-surface.md).

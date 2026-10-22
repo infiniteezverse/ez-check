@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import type { ApprovalDecision, ApprovalRequest, Approver } from './types.js';
+import { verifyApprovalProof, type ApprovalProof, type VerifyOptions } from './verify.js';
 
 export interface HttpApproverOptions {
   /** Base URL of the EZ CHECK approval server, e.g. http://localhost:4747 */
@@ -10,6 +11,11 @@ export interface HttpApproverOptions {
   onPending?: (url: string, request: ApprovalRequest) => void;
   /** Open the approval page in the default browser (macOS, Windows, Linux). */
   openInBrowser?: boolean;
+  /**
+   * Check the passkey signature here against pinned keys instead of trusting the server's "approved".
+   * Get the keys from the server's GET /api/passkeys once, at setup.
+   */
+  verify?: VerifyOptions;
   pollIntervalMs?: number;
   timeoutMs?: number;
 }
@@ -40,10 +46,25 @@ export class HttpApprover implements Approver {
         'GET',
         `/api/approvals/${encodeURIComponent(created.id)}`,
       );
+      if (decision.status === 'approved' && this.options.verify) {
+        return this.checkProof(decision, request, created.id);
+      }
       if (decision.status !== 'pending') return { ...decision, status: decision.status, id: created.id };
       await new Promise((resolve) => setTimeout(resolve, this.pollIntervalMs));
     }
     return { status: 'expired', id: created.id };
+  }
+
+  private checkProof({ proof }: { proof?: ApprovalProof }, request: ApprovalRequest, id: string): ApprovalDecision {
+    try {
+      if (!proof) throw new Error('server returned no proof');
+      // Verify against the hash we computed, not anything the server echoes back.
+      verifyApprovalProof(proof, request.argsHash, this.options.verify!);
+      return { status: 'approved', argsHash: request.argsHash, proof, id };
+    } catch (err) {
+      console.error(`[ez-check] ${(err as Error).message}`);
+      return { status: 'unverified', id };
+    }
   }
 
   private async call<T>(method: string, path: string, body?: unknown): Promise<T> {

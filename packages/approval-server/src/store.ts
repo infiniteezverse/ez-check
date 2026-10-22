@@ -1,5 +1,6 @@
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import type { ApprovalProof } from '@ezcheck/mcp-sdk';
 import type { WebAuthnCredential } from '@simplewebauthn/server';
 
 export type ApprovalState = 'pending' | 'approved' | 'denied' | 'expired';
@@ -18,6 +19,8 @@ export interface Approval {
   challenge?: string;
   /** Kept for audit: which credential signed, and when. */
   approvedBy?: string;
+  /** The raw assertion, handed to agents so they can verify it themselves. */
+  proof?: ApprovalProof;
   decidedAt?: number;
 }
 
