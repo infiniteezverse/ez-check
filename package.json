@@ -10,7 +10,8 @@
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces",
     "test": "npm test --workspaces --if-present",
-    "server": "npm run dev -w @ezcheck/approval-server"
+    "server": "npm run dev -w @ezcheck/approval-server",
+    "demo": "node scripts/demo.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

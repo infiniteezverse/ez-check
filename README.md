@@ -22,6 +22,18 @@ easily as a person. EZ CHECK moves the approval out of the agent's reach:
 - **No friction where it isn't needed.** Read-only and low-risk tools run untouched; one line marks a tool high-risk.
 - **An audit trail.** Every request, approval, denial and timeout is logged with what was signed and by which passkey.
 
+### Try it in 5 minutes
+
+```bash
+npm install && npm run demo
+```
+
+This starts the approval server, registers your passkey, adds two demo MCP servers to Claude Code, and shows
+approvals live. Then ask Claude to *"refund $500 of the Team plan charge."* See [docs/demo.md](docs/demo.md)
+for the full walkthrough and a 2-minute video script.
+
+### How it works
+
 ```
 agent ──tool call──▶ MCP server ──protect()──▶ HIGH risk? ──no──▶ run
                                                    │
@@ -103,7 +115,7 @@ npm run server
 In another terminal, from the repo root:
 
 ```bash
-claude mcp add ez-check-demo -e EZCHECK_AGENT_TOKEN=$EZCHECK_AGENT_TOKEN -- npx tsx "$PWD/examples/backup-demo/src/main.ts"
+claude mcp add ez-check-demo -e EZCHECK_AGENT_TOKEN=$EZCHECK_AGENT_TOKEN -- "$PWD/node_modules/.bin/tsx" "$PWD/examples/backup-demo/src/main.ts"
 ```
 
 Then ask Claude to "delete the oldest backup." The approval page opens in your browser; approve with Touch ID
@@ -112,7 +124,7 @@ and it's deleted, or deny and Claude is told no.
 For the Stripe guard, add it the same way and ask Claude to "refund $500 of the annual Team plan charge":
 
 ```bash
-claude mcp add ez-check-stripe -e EZCHECK_AGENT_TOKEN=$EZCHECK_AGENT_TOKEN -- npx tsx "$PWD/examples/mcp-stripe-guard/src/main.ts"
+claude mcp add ez-check-stripe -e EZCHECK_AGENT_TOKEN=$EZCHECK_AGENT_TOKEN -- "$PWD/node_modules/.bin/tsx" "$PWD/examples/mcp-stripe-guard/src/main.ts"
 ```
 
 ## Audit log
