@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { WebAuthnCredential } from '@simplewebauthn/server';
 
@@ -34,10 +34,12 @@ export class Store {
   registrationChallenge?: string;
   private credentials: StoredCredential[];
   private readonly file: string;
+  readonly auditFile: string;
 
   constructor(dataDir: string) {
     mkdirSync(dataDir, { recursive: true });
     this.file = join(dataDir, 'credentials.json');
+    this.auditFile = join(dataDir, 'audit.jsonl');
     try {
       this.credentials = JSON.parse(readFileSync(this.file, 'utf8'));
     } catch {
@@ -83,7 +85,18 @@ export class Store {
   /** Returns the approval, flipping it to expired first if its time is up. */
   getApproval(id: string, now = Date.now()): Approval | undefined {
     const approval = this.approvals.get(id);
-    if (approval?.status === 'pending' && now > approval.expiresAt) approval.status = 'expired';
+    if (approval?.status === 'pending' && now > approval.expiresAt) {
+      approval.status = 'expired';
+      approval.decidedAt = now;
+      this.audit('expired', approval);
+    }
     return approval;
+  }
+
+  /** Append-only JSONL record of every request and decision, kept on disk across restarts. */
+  audit(event: 'requested' | ApprovalState, approval: Approval): void {
+    const { id, tool, args, argsHash, summary, approvedBy } = approval;
+    const line = { at: new Date().toISOString(), event, id, tool, summary, argsHash, args, approvedBy };
+    appendFileSync(this.auditFile, `${JSON.stringify(line)}\n`, { mode: 0o600 });
   }
 }

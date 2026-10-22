@@ -1,0 +1,18 @@
+{
+  "name": "@ezcheck/example-mcp-server",
+  "version": "0.1.0",
+  "description": "Demo MCP server with one low-risk and one EZ CHECK-protected high-risk tool.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prestart": "tsc -p ../mcp-sdk/tsconfig.json",
+    "start": "tsx src/main.ts",
+    "pretypecheck": "tsc -p ../mcp-sdk/tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@ezcheck/mcp-sdk": "0.1.0",
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "zod": "^4.0.0"
+  }
+}

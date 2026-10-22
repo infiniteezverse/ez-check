@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -99,6 +99,18 @@ describe('human side', () => {
 
     // A decided request cannot be decided again.
     expect((await fetch(`${base}/webauthn/approvals/${id}/deny`, { method: 'POST' })).status).toBe(409);
+  });
+
+  it('records requests and decisions in the audit log', async () => {
+    const { id } = await (await agent('/api/approvals', { method: 'POST', body: JSON.stringify(request('wipe', { db: 'prod' })) })).json();
+    await fetch(`${base}/webauthn/approvals/${id}/deny`, { method: 'POST' });
+
+    const lines = readFileSync(store.auditFile, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+    expect(lines.map((l) => [l.event, l.id, l.tool])).toEqual([
+      ['requested', id, 'wipe'],
+      ['denied', id, 'wipe'],
+    ]);
+    expect(lines[0].args).toEqual({ db: 'prod' });
   });
 
   it('will not issue an approval challenge before a passkey is registered', async () => {

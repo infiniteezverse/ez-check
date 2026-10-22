@@ -10,7 +10,7 @@ import {
 } from '@simplewebauthn/server';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import type { Config } from './config.js';
-import type { Store } from './store.js';
+import type { Approval, Store } from './store.js';
 
 const publicDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const browserBundle = join(
@@ -54,9 +54,8 @@ export function createApp(config: Config, store: Store) {
       return;
     }
     const now = Date.now();
-    const id = randomUUID();
-    store.approvals.set(id, {
-      id,
+    const approval: Approval = {
+      id: randomUUID(),
       tool,
       args,
       argsHash,
@@ -64,7 +63,10 @@ export function createApp(config: Config, store: Store) {
       status: 'pending',
       createdAt: now,
       expiresAt: now + config.approvalTtlMs,
-    });
+    };
+    store.approvals.set(approval.id, approval);
+    store.audit('requested', approval);
+    const { id } = approval;
     res.status(201).json({ id, url: new URL(`/approve/${id}`, config.origin).toString() });
   });
 
@@ -200,6 +202,7 @@ export function createApp(config: Config, store: Store) {
       if (!verified) throw new Error('Signature not verified');
       store.updateCounter(credential.id, authenticationInfo.newCounter);
       Object.assign(approval, { status: 'approved', approvedBy: credential.id, decidedAt: Date.now() });
+      store.audit('approved', approval);
       res.json({ status: 'approved' });
     } catch (err) {
       res.status(400).json({ error: (err as Error).message });
@@ -211,6 +214,7 @@ export function createApp(config: Config, store: Store) {
     const approval = loadPending(req, res);
     if (!approval) return;
     Object.assign(approval, { status: 'denied', decidedAt: Date.now() });
+    store.audit('denied', approval);
     res.json({ status: 'denied' });
   });
 

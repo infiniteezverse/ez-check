@@ -22,7 +22,8 @@ agent ──tool call──▶ MCP server ──protect()──▶ HIGH risk? �
 | Package | What it is |
 | --- | --- |
 | [`@ezcheck/mcp-sdk`](packages/mcp-sdk) | `createEzCheck().protect(handler, { riskTier })` wraps any tool handler. `HttpApprover` talks to the approval server. |
-| [`@ezcheck/approval-server`](packages/approval-server) | Local Express server: passkey registration, the approval page, and WebAuthn verification (SimpleWebAuthn). |
+| [`@ezcheck/approval-server`](packages/approval-server) | Local Express server: passkey registration, the approval page, WebAuthn verification (SimpleWebAuthn), audit log. |
+| [`@ezcheck/example-mcp-server`](packages/example-mcp-server) | Demo MCP server to try the whole flow from Claude Code. |
 
 ## Quick start
 
@@ -47,9 +48,9 @@ const ezCheck = createEzCheck({
   }),
 });
 
-server.tool(
+server.registerTool(
   'database_backup',
-  { database: z.string(), destination: z.string() },
+  { description: 'Back up a database', inputSchema: { database: z.string(), destination: z.string() } },
   ezCheck.protect(backupHandler, {
     name: 'database_backup',
     riskTier: 'HIGH',
@@ -60,6 +61,32 @@ server.tool(
 
 If the human denies, doesn't answer within the TTL (2 minutes by default), or approves different arguments,
 the wrapped call throws `ApprovalDeniedError` and the handler never runs.
+
+## Try it with Claude Code
+
+[`packages/example-mcp-server`](packages/example-mcp-server/src/main.ts) is a demo MCP server with two tools on
+pretend data: `list_backups` (low risk, runs immediately) and `delete_backup` (high risk, needs your passkey).
+
+```bash
+export EZCHECK_AGENT_TOKEN=$(openssl rand -base64 24)
+npm run build -w @ezcheck/mcp-sdk
+npm run server
+```
+
+In another terminal, from the repo root:
+
+```bash
+claude mcp add ez-check-demo -e EZCHECK_AGENT_TOKEN=$EZCHECK_AGENT_TOKEN -- npx tsx "$PWD/packages/example-mcp-server/src/main.ts"
+```
+
+Then ask Claude to "delete the oldest backup." The approval page opens in your browser; approve with Touch ID
+and it's deleted, or deny and Claude is told no.
+
+## Audit log
+
+Every request and decision (`requested`, `approved`, `denied`, `expired`) is appended to
+`$EZCHECK_DATA_DIR/audit.jsonl` with the tool, summary, exact args, args hash and, for approvals, the passkey
+credential id that signed. The file is created `0600`.
 
 ## Security model
 
@@ -97,5 +124,4 @@ v0.1, single user, local machine. Not yet built:
 - Approval from a phone (needs the server on a real HTTPS origin so the phone's passkey can be used).
 - Native notifications instead of opening a browser tab.
 - The SDK verifying the signed assertion itself instead of trusting the local server.
-- Persistent audit log of approvals and denials.
 - Web surface: see [docs/web-surface.md](docs/web-surface.md).
