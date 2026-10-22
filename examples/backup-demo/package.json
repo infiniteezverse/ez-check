@@ -1,13 +1,13 @@
 {
-  "name": "@ezcheck/example-mcp-server",
+  "name": "@ezcheck/example-backup-demo",
   "version": "0.1.0",
   "description": "Demo MCP server with one low-risk and one EZ CHECK-protected high-risk tool.",
   "private": true,
   "type": "module",
   "scripts": {
-    "prestart": "tsc -p ../mcp-sdk/tsconfig.json",
+    "prestart": "tsc -p ../../packages/mcp-sdk/tsconfig.json",
     "start": "tsx src/main.ts",
-    "pretypecheck": "tsc -p ../mcp-sdk/tsconfig.json",
+    "pretypecheck": "tsc -p ../../packages/mcp-sdk/tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

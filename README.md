@@ -23,7 +23,16 @@ agent ──tool call──▶ MCP server ──protect()──▶ HIGH risk? �
 | --- | --- |
 | [`@ezcheck/mcp-sdk`](packages/mcp-sdk) | `createEzCheck().protect(handler, { riskTier })` wraps any tool handler. `HttpApprover` talks to the approval server. |
 | [`@ezcheck/approval-server`](packages/approval-server) | Local Express server: passkey registration, the approval page, WebAuthn verification (SimpleWebAuthn), audit log. |
-| [`@ezcheck/example-mcp-server`](packages/example-mcp-server) | Demo MCP server to try the whole flow from Claude Code. |
+
+## Examples
+
+| Example | Low risk (runs) | High risk (needs passkey) |
+| --- | --- | --- |
+| [`examples/backup-demo`](examples/backup-demo/src/main.ts) | `list_backups` | `delete_backup` |
+| [`examples/mcp-stripe-guard`](examples/mcp-stripe-guard/src/main.ts) | `list_charges` | `refund_charge` (approval page shows the amount in dollars) |
+
+Both run on pretend data out of the box. The Stripe guard switches to the real Stripe API in test mode when
+`STRIPE_SECRET_KEY=sk_test_…` is set, and refuses live keys.
 
 ## Quick start
 
@@ -64,8 +73,8 @@ the wrapped call throws `ApprovalDeniedError` and the handler never runs.
 
 ## Try it with Claude Code
 
-[`packages/example-mcp-server`](packages/example-mcp-server/src/main.ts) is a demo MCP server with two tools on
-pretend data: `list_backups` (low risk, runs immediately) and `delete_backup` (high risk, needs your passkey).
+[`examples/backup-demo`](examples/backup-demo/src/main.ts) is a demo MCP server with two tools on pretend data:
+`list_backups` (low risk, runs immediately) and `delete_backup` (high risk, needs your passkey).
 
 ```bash
 export EZCHECK_AGENT_TOKEN=$(openssl rand -base64 24)
@@ -76,11 +85,17 @@ npm run server
 In another terminal, from the repo root:
 
 ```bash
-claude mcp add ez-check-demo -e EZCHECK_AGENT_TOKEN=$EZCHECK_AGENT_TOKEN -- npx tsx "$PWD/packages/example-mcp-server/src/main.ts"
+claude mcp add ez-check-demo -e EZCHECK_AGENT_TOKEN=$EZCHECK_AGENT_TOKEN -- npx tsx "$PWD/examples/backup-demo/src/main.ts"
 ```
 
 Then ask Claude to "delete the oldest backup." The approval page opens in your browser; approve with Touch ID
 and it's deleted, or deny and Claude is told no.
+
+For the Stripe guard, add it the same way and ask Claude to "refund $500 of the annual Team plan charge":
+
+```bash
+claude mcp add ez-check-stripe -e EZCHECK_AGENT_TOKEN=$EZCHECK_AGENT_TOKEN -- npx tsx "$PWD/examples/mcp-stripe-guard/src/main.ts"
+```
 
 ## Audit log
 
