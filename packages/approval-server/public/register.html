@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EZ CHECK · Register passkey</title>
+  <link rel="stylesheet" href="/static/page.css">
+  <script src="/static/simplewebauthn.js"></script>
+</head>
+<body>
+<main>
+  <h1>Register your passkey</h1>
+  <p class="muted">
+    EZ CHECK asks for this passkey (Touch ID, Windows Hello or your phone's screen lock) before an AI agent
+    runs a tool marked high-risk. The key stays on your device; this server only stores its public half.
+  </p>
+  <div class="actions">
+    <button class="primary" id="register">Create passkey</button>
+  </div>
+  <p id="message"></p>
+</main>
+<script>
+  const { startRegistration } = SimpleWebAuthnBrowser;
+  const btn = document.getElementById('register');
+  const msg = document.getElementById('message');
+  const say = (text, cls = '') => { msg.textContent = text; msg.className = cls; };
+
+  async function post(path, body) {
+    const res = await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body ?? {}) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || res.statusText);
+    return data;
+  }
+
+  fetch('/webauthn/status').then((r) => r.json()).then(({ registered }) => {
+    if (registered) { btn.disabled = true; say('A passkey is already registered.', 'ok'); }
+  });
+
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    try {
+      const optionsJSON = await post('/webauthn/register/options');
+      const response = await startRegistration({ optionsJSON });
+      await post('/webauthn/register/verify', response);
+      say('Passkey registered. Agents can now ask you to approve high-risk tool calls.', 'ok');
+    } catch (err) {
+      say(err.message, 'err');
+      btn.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>

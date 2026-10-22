@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EZ CHECK · Approve tool call</title>
+  <link rel="stylesheet" href="/static/page.css">
+  <script src="/static/simplewebauthn.js"></script>
+</head>
+<body>
+<main>
+  <h1>An agent wants to run <span id="tool">…</span></h1>
+  <p class="muted" id="expires"></p>
+  <p class="summary" id="summary"></p>
+  <details open>
+    <summary class="muted">Exact arguments</summary>
+    <pre id="args"></pre>
+  </details>
+  <p class="muted">Your passkey signs this hash: <code id="hash"></code></p>
+  <div class="actions">
+    <button class="primary" id="approve">Approve with passkey</button>
+    <button id="deny">Deny</button>
+  </div>
+  <p id="message"></p>
+</main>
+<script>
+  const { startAuthentication } = SimpleWebAuthnBrowser;
+  const id = location.pathname.split('/').pop();
+  const $ = (sel) => document.getElementById(sel);
+  const say = (text, cls = '') => { $('message').textContent = text; $('message').className = cls; };
+  const lock = () => { $('approve').disabled = true; $('deny').disabled = true; };
+  let timer;
+
+  async function post(path, body) {
+    const res = await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body ?? {}) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || res.statusText);
+    return data;
+  }
+
+  async function load() {
+    const res = await fetch(`/webauthn/approvals/${id}`);
+    if (!res.ok) { lock(); say('This approval request does not exist.', 'err'); return; }
+    const a = await res.json();
+    $('tool').textContent = a.tool;
+    $('summary').textContent = a.summary;
+    $('args').textContent = JSON.stringify(a.args, null, 2);
+    $('hash').textContent = a.argsHash;
+    if (a.status !== 'pending') { lock(); say(`This request was already ${a.status}.`, a.status === 'approved' ? 'ok' : 'err'); return; }
+    const tick = () => {
+      const left = Math.max(0, Math.round((a.expiresAt - Date.now()) / 1000));
+      $('expires').textContent = left ? `Expires in ${left}s` : 'Expired';
+      if (!left) { lock(); clearInterval(timer); }
+    };
+    tick();
+    timer = setInterval(tick, 1000);
+  }
+
+  $('approve').addEventListener('click', async () => {
+    lock();
+    try {
+      const optionsJSON = await post(`/webauthn/approvals/${id}/options`);
+      const response = await startAuthentication({ optionsJSON });
+      await post(`/webauthn/approvals/${id}/verify`, response);
+      clearInterval(timer);
+      say('Approved. The agent will continue.', 'ok');
+    } catch (err) {
+      say(err.message, 'err');
+      $('approve').disabled = false;
+      $('deny').disabled = false;
+    }
+  });
+
+  $('deny').addEventListener('click', async () => {
+    lock();
+    try {
+      await post(`/webauthn/approvals/${id}/deny`);
+      clearInterval(timer);
+      say('Denied. The agent was told no.', 'ok');
+    } catch (err) {
+      say(err.message, 'err');
+    }
+  });
+
+  load();
+</script>
+</body>
+</html>

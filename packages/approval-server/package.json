@@ -1,0 +1,26 @@
+{
+  "name": "@ezcheck/approval-server",
+  "version": "0.1.0",
+  "description": "Local server where a human approves agent tool calls with their device passkey (Touch ID, Windows Hello, Android).",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "predev": "tsc -p ../mcp-sdk/tsconfig.json",
+    "dev": "tsx src/main.ts",
+    "prebuild": "tsc -p ../mcp-sdk/tsconfig.json",
+    "build": "tsc -p tsconfig.json",
+    "pretypecheck": "tsc -p ../mcp-sdk/tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "pretest": "tsc -p ../mcp-sdk/tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ezcheck/mcp-sdk": "0.1.0",
+    "@simplewebauthn/browser": "^14.0.0",
+    "@simplewebauthn/server": "^14.0.3",
+    "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0"
+  }
+}
