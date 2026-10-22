@@ -1,8 +1,26 @@
 # EZ CHECK
 
-Human sign-off for AI agents. When an agent calls a tool you've marked high-risk over MCP, EZ CHECK pauses
+[![CI](https://github.com/infiniteezverse/ez-check/actions/workflows/ci.yml/badge.svg)](https://github.com/infiniteezverse/ez-check/actions/workflows/ci.yml)
+![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6)
+![MCP](https://img.shields.io/badge/MCP-compatible-555)
+![WebAuthn](https://img.shields.io/badge/WebAuthn-passkeys-1a7f37)
+
+**Human sign-off for AI agents.** When an agent calls a tool you've marked high-risk over MCP, EZ CHECK pauses
 the call, shows you exactly what it's about to do, and runs it only after you approve with your device passkey
 (Touch ID, Windows Hello, Android screen lock). Low-risk tools run with no prompt at all.
+
+### Why
+
+Agents now refund payments, delete data and push to production through MCP tools. Today the safeguard is
+usually a "yes" typed into a chat window, which a prompt injection or a runaway loop can produce just as
+easily as a person. EZ CHECK moves the approval out of the agent's reach:
+
+- **Only a person can approve.** The approval is a passkey signature, which requires biometrics or a device PIN.
+  The agent has no way to produce it.
+- **You approve the exact call, not a vague request.** The signature commits to a hash of the tool name and its
+  arguments. "Refund $5" can't turn into "refund $5,000" after you tap.
+- **No friction where it isn't needed.** Read-only and low-risk tools run untouched; one line marks a tool high-risk.
+- **An audit trail.** Every request, approval, denial and timeout is logged with what was signed and by which passkey.
 
 ```
 agent ──tool call──▶ MCP server ──protect()──▶ HIGH risk? ──no──▶ run
